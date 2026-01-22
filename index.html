@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vôlei do Caos - Teresina/PI</title>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        :root { --sand: #f1c40f; --ocean: #2980b9; --sunset: #e67e22; --glass: rgba(255, 255, 255, 0.96); }
+        body { font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 0; color: #2c3e50; background-color: #333; overflow-x: hidden; }
+        
+        body::before {
+            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background-image: url('net-of-volleyball-on-the-beach-and-the-sunset-seen-in-the-blurred-background_181624-49550.avif');
+            background-size: cover; background-position: center; filter: blur(8px); transform: scale(1.1);
+        }
+
+        /* Botão Redondo de Alternar Perfil */
+        .profile-toggle { position: fixed; top: 15px; right: 15px; width: 50px; height: 50px; border-radius: 50%; background: var(--ocean); color: white; border: 3px solid white; font-size: 1.4rem; cursor: pointer; z-index: 2500; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; }
+
+        /* Login Overlay */
+        #login-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(15px); }
+        .login-card { background: var(--glass); padding: 40px; border-radius: 25px; text-align: center; width: 85%; max-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .login-btn { width: 100%; padding: 18px; margin: 12px 0; border: none; border-radius: 15px; font-weight: bold; cursor: pointer; font-size: 1.2rem; transition: 0.3s; }
+
+        .container { max-width: 800px; margin: auto; padding: 10px; display: none; }
+        header { text-align: center; color: white; text-shadow: 2px 2px 10px rgba(0,0,0,0.9); padding-top: 20px; }
+        
+        /* Abas com fonte +2pt */
+        .tabs { display: flex; gap: 8px; margin: 20px 0; }
+        .tab-btn { flex: 1; padding: 14px; border-radius: 20px; border: 2px solid var(--sand); background: rgba(0,0,0,0.7); color: white; font-weight: bold; cursor: pointer; font-size: 1.35rem; }
+        .tab-btn.active { background: var(--sand); color: #000; }
+        
+        .timer-display { background: var(--ocean); color: white; padding: 20px; border-radius: 20px; text-align: center; position: sticky; top: 10px; z-index: 100; box-shadow: 0 10px 25px rgba(0,0,0,0.4); margin-bottom: 20px; }
+        #clock { font-size: 2.8rem; font-weight: bold; font-family: monospace; }
+        .t-btn { background: white; border: none; padding: 8px 15px; border-radius: 12px; font-weight: bold; color: var(--ocean); font-size: 0.8rem; margin: 3px; cursor: pointer; }
+        
+        .card { background: var(--glass); border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        h2 { border-left: 6px solid var(--sunset); padding-left: 12px; color: var(--ocean); margin-bottom: 15px; font-size: 1.2rem; }
+        
+        /* Checklist Jogadores do Dia (3 Colunas) */
+        .player-checkbox-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 20px; }
+        .player-option { display: flex; align-items: center; font-size: 0.75rem; background: rgba(255,255,255,0.6); padding: 8px; border-radius: 10px; font-weight: 700; border: 1px solid #ddd; }
+        .player-thumb { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; margin-right: 6px; background: #eee; border: 1px solid #ccc; }
+        
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .config-input { padding: 12px; border: 1px solid #ccc; border-radius: 12px; font-weight: bold; width: 100%; box-sizing: border-box; }
+        
+        table { width: 100%; font-size: 0.85rem; border-collapse: collapse; min-width: 450px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.08); }
+        .match-card { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; align-items: center; justify-content: space-between; }
+        .score-input { width: 50px; height: 50px; text-align: center; font-size: 1.5rem; border: 2px solid #bbb; border-radius: 12px; font-weight: bold; }
+        
+        .btn-finish { background: var(--sunset); color: white; border: none; padding: 18px; border-radius: 15px; width: 100%; font-weight: bold; cursor: pointer; margin-top: 15px; font-size: 1.1rem; }
+        .btn-admin-only { display: none; margin-top: 10px; padding: 14px; border: none; border-radius: 12px; font-weight: bold; cursor: pointer; width: 100%; color: white; }
+        
+        /* Botão de Excluir Rosa */
+        .btn-delete { background: #ffc0cb; color: #d01c8b; border: none; padding: 6px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: bold; cursor: pointer; display: none; }
+        .btn-action { background: white; border: 2px solid var(--ocean); color: var(--ocean); padding: 8px 12px; border-radius: 10px; font-size: 0.7rem; font-weight: bold; cursor: pointer; margin: 2px; }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 3000; align-items: center; justify-content: center; }
+        .modal-content { background: white; padding: 25px; border-radius: 20px; width: 90%; max-width: 380px; }
+    </style>
+</head>
+<body>
+
+<button class="profile-toggle" onclick="toggleProfile()" title="Trocar Perfil">👤</button>
+
+<div id="login-overlay">
+    <div class="login-card">
+        <h1 style="color: var(--ocean); margin-bottom: 5px;">VÔLEI DO CAOS</h1>
+        <p style="font-weight: bold; margin-bottom: 25px;">Selecione o Perfil</p>
+        <button class="login-btn" style="background:var(--ocean);color:white" onclick="setAccess('player')">JOGADOR</button>
+        <button class="login-btn" style="background:var(--sunset);color:white" onclick="setAccess('admin')">ADMINISTRADOR</button>
+    </div>
+</div>
+
+<div id="player-modal" class="modal">
+    <div class="modal-content">
+        <h3 id="modal-title" style="margin-top:0">Incluir Jogador</h3>
+        <input type="text" id="p-name" class="config-input" placeholder="Nome Completo" style="margin-bottom:15px;">
+        <p style="font-size:0.8rem; margin:0 0 5px 0">Foto de Rosto:</p>
+        <input type="file" id="p-photo" accept="image/*" style="margin-bottom:20px; font-size:0.8rem;">
+        <button class="btn-finish" style="margin:0; width:100%;" onclick="savePlayer()">SALVAR JOGADOR</button>
+        <button class="btn-action" style="width:100%; margin-top:10px; border-color:#999; color:#666" onclick="closeModal()">CANCELAR</button>
+    </div>
+</div>
+
+<div class="container" id="main-container">
+    <header>
+        <script>document.write(`<img src="logo_caos.png?v=${Date.now()}" alt="Vôlei do Caos" style="max-width: 310px; height: auto;">`);</script>
+        <p style="color:white; font-weight:bold; margin-top:10px; text-shadow: 2px 2px 5px #000; letter-spacing: 1px;">TERESINA / PI</p>
+    </header>
+    
+    <div class="tabs">
+        <button class="tab-btn active" id="tabT" onclick="switchTab('torneio')">Torneio do Dia</button>
+        <button class="tab-btn" id="tabR" onclick="switchTab('ranking')">Ranking Anual</button>
+    </div>
+
+    <div id="section-torneio">
+        <div class="timer-display">
+            <span id="clock">00:00:00</span><br>
+            <button class="t-btn" onclick="startClock()">INICIAR</button>
+            <button class="t-btn" onclick="pauseClock()">PAUSAR</button>
+            <button class="t-btn" onclick="resetClock()">ZERAR</button>
+        </div>
+        
+        <div class="card">
+            <h2>👥 Jogadores do Dia (Checklist)</h2>
+            <div id="players-checklist" class="player-checkbox-grid"></div>
+            <div style="display:flex; gap:8px; margin-bottom:15px;">
+                <button class="btn-action" style="flex:1" onclick="showModal('add')">Incluir Jogador</button>
+                <button class="btn-action" style="flex:1" onclick="showModal('edit')">Editar Jogador</button>
+            </div>
+            <button class="btn-finish" style="background:var(--ocean); margin-top:0;" onclick="drawTeams()">🎲 SORTEAR DUPLAS</button>
+            <button class="btn-action" style="width:100%; padding:12px; margin-top:8px; background:#f8f8f8" onclick="clearDraw()">Limpar Sorteio 🧹</button>
+        </div>
+
+        <div class="card">
+            <input type="date" id="tDate" style="width:100%; padding:12px; margin-bottom:15px; border-radius:12px; border:2px solid #ccc; font-weight:bold; font-size:1rem;" onchange="loadTournament()">
+            <div class="config-grid">
+                <input type="text" id="team0" class="config-input" placeholder="Dupla 1" onchange="updateTeams()">
+                <input type="text" id="team1" class="config-input" placeholder="Dupla 2" onchange="updateTeams()">
+                <input type="text" id="team2" class="config-input" placeholder="Dupla 3" onchange="updateTeams()">
+                <input type="text" id="team3" class="config-input" placeholder="Dupla 4" onchange="updateTeams()">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Classificação da Rodada</h2>
+            <table id="daily-rank-table">
+                <thead><tr><th>Posição</th><th>Dupla</th><th>Vitórias</th><th>Saldo Pontos</th></tr></thead>
+                <tbody id="rank-body"></tbody>
+            </table>
+            <button id="finishBtn" class="btn-finish" onclick="finishTournament()">ENCERRAR E PONTUAR RANKING 🏅</button>
+            <button id="admin-reset-day" class="btn-admin-only" style="background:#666;" onclick="resetDay()">Zerar Dia 🧹</button>
+        </div>
+        <div class="card" id="match-list"></div>
+    </div>
+
+    <div id="section-ranking" style="display:none;">
+        <div class="card">
+            <h2>🏆 Ranking Geral 2026</h2>
+            <button class="btn-finish" style="background:var(--ocean); margin-bottom:15px;" onclick="shareRankingWPP()">WhatsApp Ranking Completo 📱</button>
+            <table>
+                <thead><tr><th>POS</th><th>JOGADOR</th><th>PTS</th><th>V/D</th><th>%</th><th>AÇÕES</th></tr></thead>
+                <tbody id="annual-body"></tbody>
+            </table>
+            <button id="admin-full-reset" class="btn-admin-only" style="background:#c0392b; margin-top:35px; padding:20px; font-size:1.2rem;" onclick="fullReset()">APAGAR TUDO 💣</button>
+        </div>
+    </div>
+</div>
+
+<div id="pdf-template" style="display:none; padding:40px; background:white; text-align:center; border:8px solid var(--ocean);">
+    <h1 style="color:var(--ocean); margin-bottom:5px;">VÔLEI DO CAOS</h1>
+    <h2 id="pdf-player-name" style="color:var(--sunset)"></h2>
+    <hr>
+    <div id="pdf-body" style="font-size:1.4rem; margin:30px 0; line-height:1.6;"></div>
+    <p style="font-style:italic">"Não desanime. Tudo sempre pode piorar mais!"</p>
+    <p style="margin-top:40px; font-size:0.8rem;">Teresina/PI - <span id="pdf-timestamp"></span></p>
+</div>
+
+<script>
+    const firebaseConfig = {
+        apiKey: "AIzaSyDPJgGM2i8klLuabUpCFrXuzkI5yc2FzII",
+        authDomain: "tabela-ranking---volei-do-caos.firebaseapp.com",
+        databaseURL: "https://tabela-ranking---volei-do-caos-default-rtdb.firebaseio.com",
+        projectId: "tabela-ranking---volei-do-caos",
+        storageBucket: "tabela-ranking---volei-do-caos.firebasestorage.app",
+        messagingSenderId: "974894131687",
+        appId: "1:974894131687:web:780a6d98b58c9a4722b542"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    const initialPlayers = ["Rodrigo", "Italo", "MB", "Claudino", "Bené", "Samuel", "Vitim", "Marcílio", "Pedro", "Wagner", "Lucas", "Diêgo", "Rudson", "Léo", "Marcão"];
+    const matchesDef = [{id:1,a:0,b:1},{id:2,a:2,b:3},{id:3,a:1,b:2},{id:4,a:3,b:0},{id:5,a:2,b:0},{id:6,a:3,b:1},{id:7,a:0,b:1},{id:8,a:2,b:3},{id:9,a:1,b:2},{id:10,a:3,b:0},{id:11,a:2,b:0},{id:12,a:3,b:1}];
+    
+    let isAdmin = false, playerMetadata = {};
+    let curDate = new Date().toISOString().split('T')[0];
+    document.getElementById('tDate').value = curDate;
+
+    function toggleProfile() {
+        if(confirm("Deseja alternar o perfil de acesso? O sistema será reiniciado.")) location.reload();
+    }
+
+    function setAccess(role) {
+        if(role === 'admin') {
+            const pass = prompt("Digite a Senha de Administrador:");
+            if(pass === "1234") { 
+                isAdmin = true; 
+            } else { 
+                alert("Senha Incorreta!"); return; 
+            }
+        }
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('main-container').style.display = 'block';
+        
+        // Exibição explícita dos botões admin
+        if(isAdmin) {
+            document.querySelectorAll('.btn-admin-only').forEach(b => b.style.display = 'block');
+            document.querySelectorAll('.btn-delete').forEach(b => b.style.display = 'inline-block');
+        }
+        loadPlayers(); loadTournament();
+    }
+
+    function loadPlayers() {
+        db.ref('playerData').on('value', snap => {
+            playerMetadata = snap.val() || {};
+            const container = document.getElementById('players-checklist');
+            const allNames = [...new Set([...initialPlayers, ...Object.keys(playerMetadata)])].sort();
+            container.innerHTML = allNames.map(p => {
+                const img = playerMetadata[p]?.photo ? `<img src="${playerMetadata[p].photo}" class="player-thumb">` : `<div class="player-thumb"></div>`;
+                return `<label class="player-option">${img}<input type="checkbox" class="player-check" value="${p}"> ${p}</label>`;
+            }).join('');
+        });
+    }
+
+    function showModal(mode) {
+        window.curMode = mode;
+        if(mode === 'edit') {
+            const sel = document.querySelector('.player-check:checked');
+            if(!sel) return alert("Marque um jogador na lista para editar!");
+            window.editTarget = sel.value; document.getElementById('p-name').value = sel.value;
+        } else { window.editTarget = null; document.getElementById('p-name').value = ''; }
+        document.getElementById('player-modal').style.display = 'flex';
+    }
+
+    function savePlayer() {
+        const name = document.getElementById('p-name').value.trim(), file = document.getElementById('p-photo').files[0];
+        if(!name) return;
+        const upload = (b64) => {
+            db.ref('playerData/' + name).update({ name: name, photo: b64 || playerMetadata[name]?.photo || null });
+            if(window.editTarget && name !== window.editTarget) db.ref('playerData/' + window.editTarget).remove();
+            closeModal();
+        };
+        if(file) { const reader = new FileReader(); reader.onloadend = () => upload(reader.result); reader.readAsDataURL(file); }
+        else upload();
+    }
+    function closeModal() { document.getElementById('player-modal').style.display = 'none'; }
+
+    function loadTournament() {
+        curDate = document.getElementById('tDate').value;
+        db.ref('tournaments/' + curDate).on('value', snap => {
+            window.localData = snap.val() || { teams: ["Dupla 1", "Dupla 2", "Dupla 3", "Dupla 4"], scores: Array(12).fill({s1:"", s2:"", dur:""}), finished: false };
+            updateUI();
+        });
+        calculateStats();
+    }
+
+    function updateUI() {
+        const data = window.localData;
+        for(let i=0; i<4; i++) document.getElementById(`team${i}`).value = data.teams[i];
+        document.getElementById('finishBtn').style.display = data.finished ? 'none' : 'block';
+        document.getElementById('match-list').innerHTML = matchesDef.map((m, i) => `
+            <div class="match-card">
+                <div style="flex:1;text-align:center;"><small>${data.teams[m.a]}</small><br><input type="number" class="score-input" value="${data.scores[i].s1}" onchange="saveSc(${i},1,this.value)"></div>
+                <div style="width:110px;text-align:center;"><b>JOGO ${m.id}</b><br><button onclick="saveTime(${i})" class="btn-action" style="padding:4px; font-size:0.6rem">Fixar Tempo</button><br><input type="text" style="width:100%;border:none;text-align:center;font-size:0.7rem;color:orange;font-weight:bold" value="${data.scores[i].dur || ''}" onchange="saveManualTime(${i},this.value)"></div>
+                <div style="flex:1;text-align:center;"><small>${data.teams[m.b]}</small><br><input type="number" class="score-input" value="${data.scores[i].s2}" onchange="saveSc(${i},2,this.value)"></div>
+            </div>`).join('');
+        renderDailyRank();
+    }
+
+    function saveSc(i, t, v) { db.ref(`tournaments/${curDate}/scores/${i}/${t===1?'s1':'s2'}`).set(v); }
+    function saveTime(i) { db.ref(`tournaments/${curDate}/scores/${i}/dur`).set(document.getElementById('clock').innerText); }
+    function saveManualTime(i, v) { db.ref(`tournaments/${curDate}/scores/${i}/dur`).set(v); }
+    function updateTeams() { const nt = []; for(let i=0; i<4; i++) nt.push(document.getElementById(`team${i}`).value || "Dupla "+(i+1)); db.ref(`tournaments/${curDate}/teams`).set(nt); }
+
+    function drawTeams() {
+        const sel = Array.from(document.querySelectorAll('.player-check:checked')).map(c => c.value);
+        if(sel.length < 6) return alert("Selecione ao menos 6 jogadores!");
+        sel.sort(() => Math.random() - 0.5);
+        const ts = []; for(let i=0; i<sel.length; i+=2) if(sel[i+1]) ts.push(`${sel[i]} / ${sel[i+1]}`);
+        for(let i=0; i<4; i++) document.getElementById(`team${i}`).value = ts[i] || "Dupla "+(i+1);
+        updateTeams();
+    }
+    function clearDraw() { 
+        document.querySelectorAll('.player-check').forEach(c => c.checked = false);
+        db.ref(`tournaments/${curDate}/teams`).set(["Dupla 1", "Dupla 2", "Dupla 3", "Dupla 4"]);
+    }
+
+    function calculateStats() {
+        db.ref('tournaments').once('value', tSnap => {
+            db.ref('ranking').once('value', rSnap => {
+                const allT = tSnap.val() || {}, rData = rSnap.val() || {}, stats = {};
+                Object.keys(rData).forEach(n => stats[n] = { pts: rData[n], v:0, d:0 });
+                Object.values(allT).forEach(t => {
+                    if(!t.scores || !t.teams) return;
+                    matchesDef.forEach((m, idx) => {
+                        const s = t.scores[idx]; if(s.s1===""||s.s2===""||s.s1==null) return;
+                        const p1=parseInt(s.s1), p2=parseInt(s.s2);
+                        t.teams[m.a].split('/').forEach(p => { const n=p.trim(); if(stats[n]){ if(p1>p2) stats[n].v++; else stats[n].d++; } });
+                        t.teams[m.b].split('/').forEach(p => { const n=p.trim(); if(stats[n]){ if(p2>p1) stats[n].v++; else stats[n].d++; } });
+                    });
+                });
+                renderAnnual(stats);
+            });
+        });
+    }
+
+    function renderAnnual(stats) {
+        const sorted = Object.entries(stats).sort((a,b) => b[1].pts - a[1].pts);
+        document.getElementById('annual-body').innerHTML = sorted.map(([n, s], i) => {
+            const perc = (s.v+s.d > 0) ? ((s.v/(s.v+s.d))*100).toFixed(1) : 0;
+            const thumb = playerMetadata[n]?.photo ? `<img src="${playerMetadata[n].photo}" class="player-thumb">` : `<div class="player-thumb"></div>`;
+            return `<tr><td><b>${i+1}</b></td><td>${thumb}${n}</td><td>${s.pts}</td><td>${s.v}v-${s.d}d</td><td>${perc}%</td><td>
+                <button class="btn-action" onclick="zap('${n}',${s.pts})">ZAP</button>
+                <button class="btn-action" onclick="pdf('${n}',${s.pts})">PDF</button>
+                <button class="btn-delete" style="display:${isAdmin?'inline-block':'none'}" onclick="delP('${n}')">X</button>
+            </td></tr>`;
+        }).join('');
+    }
+
+    function zap(n, p) { 
+        const msg = `🏐 *VÔLEI DO CAOS 2026*\n\n*Jogador:* ${n}\n*Pontos Ranking:* ${p}\n\n"Não desanime. Tudo sempre pode piorar mais!"`;
+        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`); 
+    }
+    
+    function pdf(n, p) { 
+        document.getElementById('pdf-player-name').innerText = n;
+        document.getElementById('pdf-body').innerHTML = `<p>Pontuação Acumulada: <b>${p} Pontos</b></p><p>Status: Ativo no Ranking Anual</p>`;
+        document.getElementById('pdf-timestamp').innerText = new Date().toLocaleString();
+        const el = document.getElementById('pdf-template'); el.style.display = 'block';
+        html2pdf().from(el).save(`${n}_Estatistica.pdf`).then(() => el.style.display = 'none');
+    }
+
+    function delP(n) { if(confirm("⚠️ EXCLUIR "+n+" do Ranking Anual?")) { db.ref('ranking/'+n).remove(); calculateStats(); } }
+
+    function renderDailyRank() {
+        const data = window.localData;
+        let st = data.teams.map(n => ({n, v:0, sal:0}));
+        matchesDef.forEach((m, i) => {
+            let s = data.scores[i]; if(s.s1 !== "" && s.s2 !== "" && s.s1 != null){ let p1 = parseInt(s.s1), p2 = parseInt(s.s2); st[m.a].sal += (p1-p2); st[m.b].sal += (p2-p1); if(p1 > p2) st[m.a].v++; else if(p2 > p1) st[m.b].v++; }
+        });
+        document.getElementById('rank-body').innerHTML = st.sort((a,b) => b.v - a.v || b.sal - a.sal).map((s,i) => `<tr><td>${i+1}º</td><td>${s.n}</td><td>${s.v}</td><td>${s.sal}</td></tr>`).join('');
+    }
+
+    function finishTournament() {
+        if(!confirm("Encerrar rodada e salvar pontos?")) return;
+        const data = window.localData;
+        let st = data.teams.map(n => ({n, v:0, sal:0}));
+        matchesDef.forEach((m, i) => {
+            let s = data.scores[i]; if(s.s1 !== "" && s.s2 !== ""){ let p1 = parseInt(s.s1), p2 = parseInt(s.s2); st[m.a].sal += (p1-p2); st[m.b].sal += (p2-p1); if(p1 > p2) st[m.a].v++; else if(p2 > p1) st[m.b].v++; }
+        });
+        const sortedDaily = st.sort((a,b) => b.v - a.v || b.sal - a.sal);
+        const pts = [5, 3, 2, 2];
+        db.ref('ranking').once('value', snap => {
+            const r = snap.val() || {};
+            sortedDaily.forEach((d, rank) => {
+                d.n.split('/').forEach(p => { const name = p.trim(); if(!["Dupla 1","Dupla 2","Dupla 3","Dupla 4"].includes(name)) r[name] = (r[name] || 0) + pts[rank]; });
+            });
+            db.ref('ranking').set(r);
+            db.ref(`tournaments/${curDate}/finished`).set(true);
+            calculateStats(); alert("Ranking Atualizado!");
+        });
+    }
+
+    function resetDay() { if(confirm("Zerar todos os dados de HOJE?")) db.ref('tournaments/' + curDate).set({ teams: ["Dupla 1", "Dupla 2", "Dupla 3", "Dupla 4"], scores: Array(12).fill({s1:"", s2:"", dur:""}), finished: false }); }
+    function fullReset() { if(confirm("💣 BOMBA ATIVADA: Deseja apagar TODOS os jogos do ano e o Ranking?")) { db.ref('tournaments').remove(); const r = {}; initialPlayers.forEach(p => r[p] = 0); db.ref('ranking').set(r); calculateStats(); alert("Tudo limpo!"); } }
+
+    function switchTab(t) {
+        document.getElementById('section-torneio').style.display = t === 'torneio' ? 'block' : 'none';
+        document.getElementById('section-ranking').style.display = t === 'ranking' ? 'block' : 'none';
+        document.getElementById('tabT').classList.toggle('active', t==='torneio'); document.getElementById('tabR').classList.toggle('active', t==='ranking');
+        if(t==='ranking') calculateStats();
+    }
+
+    let tm, el = 0;
+    function startClock() { clearInterval(tm); let st = Date.now()-el; tm = setInterval(()=>{ el = Date.now()-st; let s=Math.floor(el/1000)%60, m=Math.floor(el/60000)%60, h=Math.floor(el/3600000); document.getElementById('clock').innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }, 1000); }
+    function pauseClock() { clearInterval(tm); }
+    function resetClock() { pauseClock(); el = 0; document.getElementById('clock').innerText = "00:00:00"; }
+</script>
+</body>
+</html>
