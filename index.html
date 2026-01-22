@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Vôlei do Caos - Gestão & Estatísticas</title>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <style>
+        :root { --sand: #f1c40f; --ocean: #2980b9; --sunset: #e67e22; --glass: rgba(255, 255, 255, 0.94); }
+        body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; padding: 10px; color: #2c3e50; background-color: #333; }
+        body::before {
+            content: ""; position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+            background-image: url('net-of-volleyball-on-the-beach-and-the-sunset-seen-in-the-blurred-background_181624-49550.avif');
+            background-size: cover; background-position: center; filter: blur(8px); transform: scale(1.1);
+        }
+        .container { max-width: 650px; margin: auto; }
+        header { text-align: center; color: white; text-shadow: 2px 2px 10px rgba(0,0,0,0.9); }
+        .tabs { display: flex; gap: 8px; margin: 15px 0; }
+        .tab-btn { flex: 1; padding: 12px; border-radius: 20px; border: 2px solid var(--sand); background: rgba(0,0,0,0.6); color: white; font-weight: bold; cursor: pointer; }
+        .tab-btn.active { background: var(--sand); color: #000; }
+        .timer-display { background: var(--ocean); color: white; padding: 15px; border-radius: 20px; text-align: center; position: sticky; top: 10px; z-index: 100; box-shadow: 0 10px 25px rgba(0,0,0,0.4); margin-bottom: 15px; }
+        #clock { font-size: 2.5rem; font-weight: bold; font-family: monospace; display: block; }
+        .card { background: var(--glass); border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.3); }
+        h2 { border-left: 5px solid var(--sunset); padding-left: 10px; color: var(--ocean); margin: 0 0 15px 0; font-size: 1.1rem; }
+        .config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .config-input { padding: 10px; border: 1px solid #ccc; border-radius: 10px; font-weight: bold; font-size: 0.9rem; }
+        table { width: 100%; font-size: 0.85rem; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .match-card { border-bottom: 1px solid #eee; padding: 12px 0; display: flex; align-items: center; justify-content: space-between; }
+        .score-input { width: 48px; height: 48px; text-align: center; font-size: 1.4rem; border: 2px solid #bbb; border-radius: 10px; font-weight: bold; }
+        .duration-input { width: 100%; text-align: center; border: 1px solid #ddd; border-radius: 5px; font-size: 0.7rem; color: var(--sunset); font-weight: bold; margin-top: 4px; padding: 2px; }
+        .btn-finish { background: var(--sunset); color: white; border: none; padding: 15px; border-radius: 12px; width: 100%; font-weight: bold; cursor: pointer; font-size: 1rem; margin-top: 15px; }
+        .btn-delete { background: #e74c3c; color: white; border: none; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 0.7rem; }
+        .btn-stats { background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-bottom: 10px; width: 100%; }
+        .btn-action { background: white; border: 1px solid var(--ocean); color: var(--ocean); padding: 5px 10px; border-radius: 8px; font-size: 0.7rem; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header><h1>VÔLEI DO CAOS</h1></header>
+    
+    <div class="tabs">
+        <button class="tab-btn active" id="tabT" onclick="switchTab('torneio')">Torneio</button>
+        <button class="tab-btn" id="tabR" onclick="switchTab('ranking')">Ranking Anual</button>
+    </div>
+
+    <div id="section-torneio">
+        <div class="timer-display">
+            <span id="clock">00:00:00</span>
+            <button class="t-btn" style="padding:5px 10px; border-radius:10px; border:none; font-weight:bold;" onclick="startClock()">INICIAR</button>
+            <button class="t-btn" style="padding:5px 10px; border-radius:10px; border:none; font-weight:bold;" onclick="pauseClock()">PAUSAR</button>
+            <button class="t-btn" style="padding:5px 10px; border-radius:10px; border:none; font-weight:bold;" onclick="resetClock()">ZERAR</button>
+        </div>
+
+        <div class="card">
+            <input type="date" id="tDate" style="width:100%; padding:12px; margin-bottom:12px; border-radius:10px; border:1px solid #ccc; box-sizing: border-box;" onchange="loadTournament()">
+            <div class="config-grid">
+                <input type="text" id="team0" class="config-input" placeholder="Dupla 1" onchange="updateTeams()">
+                <input type="text" id="team1" class="config-input" placeholder="Dupla 2" onchange="updateTeams()">
+                <input type="text" id="team2" class="config-input" placeholder="Dupla 3" onchange="updateTeams()">
+                <input type="text" id="team3" class="config-input" placeholder="Dupla 4" onchange="updateTeams()">
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📊 Classificação da Rodada</h2>
+            <table>
+                <thead><tr><th>POS</th><th>DUPLA</th><th>V</th><th>SAL</th></tr></thead>
+                <tbody id="rank-body"></tbody>
+            </table>
+            <button id="finishBtn" class="btn-finish" onclick="finishTournament()">ENCERRAR E PONTUAR NO RANKING 🏅</button>
+        </div>
+
+        <div class="card" id="match-list"></div>
+    </div>
+
+    <div id="section-ranking" style="display:none;">
+        <div class="card">
+            <h2>🏆 Ranking Geral 2026</h2>
+            <button class="btn-stats" onclick="exportAllStats()">Gerar Extrato de Todos os Jogadores 📑</button>
+            <table id="annual-table">
+                <thead><tr><th>POS</th><th>JOGADOR</th><th>PTS</th><th>AÇÕES</th></tr></thead>
+                <tbody id="annual-body"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURAÇÃO FIREBASE ---
+    const firebaseConfig = {
+        apiKey: "COLE_AQUI_SUA_API_KEY",
+        authDomain: "COLE_AQUI_SEU_AUTH_DOMAIN",
+        databaseURL: "COLE_AQUI_SUA_DATABASE_URL",
+        projectId: "COLE_AQUI_SEU_PROJECT_ID",
+        storageBucket: "COLE_AQUI_SEU_STORAGE_BUCKET",
+        messagingSenderId: "COLE_AQUI_SEU_SENDER_ID",
+        appId: "COLE_AQUI_SEU_APP_ID"
+    };
+    
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    // Dados Iniciais e Estrutura dos 12 Jogos
+    const playersInit = ["Rodrigo", "Italo", "MB", "Claudino", "Bené", "Samuel", "Vitim", "Marcílio", "Pedro", "Wagner", "Lucas", "Diêgo", "Rudson", "Léo", "Marcão"];
+    const matchesDef = [
+        {id:1,a:0,b:1},{id:2,a:2,b:3},{id:3,a:1,b:2},{id:4,a:3,b:0},
+        {id:5,a:2,b:0},{id:6,a:3,b:1},{id:7,a:0,b:1},{id:8,a:2,b:3},
+        {id:9,a:1,b:2},{id:10,a:3,b:0},{id:11,a:2,b:0},{id:12,a:3,b:1}
+    ];
+    
+    let curDate = new Date().toISOString().split('T')[0];
+    document.getElementById('tDate').value = curDate;
+    let localData = { teams:[], scores:[], finished: false };
+    let currentRankingData = {};
+
+    function loadTournament() {
+        curDate = document.getElementById('tDate').value;
+        db.ref('tournaments/' + curDate).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if(!data) {
+                const newData = {
+                    teams: ["Dupla A", "Dupla B", "Dupla C", "Dupla D"],
+                    scores: Array(12).fill({s1:"", s2:"", dur:""}),
+                    finished: false
+                };
+                db.ref('tournaments/' + curDate).set(newData);
+            } else {
+                localData = data;
+                updateUI();
+            }
+        });
+    }
+
+    db.ref('ranking').on('value', (snapshot) => {
+        currentRankingData = snapshot.val() || {};
+        playersInit.forEach(p => { if(currentRankingData[p] === undefined) currentRankingData[p] = 0; });
+        renderAnnual();
+    });
+
+    function updateUI() {
+        for(let i=0; i<4; i++) document.getElementById(`team${i}`).value = localData.teams[i];
+        document.getElementById('finishBtn').style.display = localData.finished ? 'none' : 'block';
+        
+        document.getElementById('match-list').innerHTML = matchesDef.map((m, i) => `
+            <div class="match-card">
+                <div style="flex:1; text-align:center;"><small>${localData.teams[m.a]}</small><br><input type="number" class="score-input" value="${localData.scores[i].s1}" onchange="saveScore(${i},1,this.value)"></div>
+                <div style="width:110px; text-align:center;">
+                    <small style="font-weight:bold">JOGO ${m.id}</small><br>
+                    <button class="btn-action" style="font-size:0.6rem; padding:2px 5px;" onclick="saveTime(${i})">FIXAR TEMPO</button>
+                    <input type="text" class="duration-input" value="${localData.scores[i].dur || ''}" placeholder="00:00:00" onchange="saveManualTime(${i}, this.value)">
+                </div>
+                <div style="flex:1; text-align:center;"><small>${localData.teams[m.b]}</small><br><input type="number" class="score-input" value="${localData.scores[i].s2}" onchange="saveScore(${i},2,this.value)"></div>
+            </div>`).join('');
+        calculateRank();
+    }
+
+    function saveScore(i, t, v) { db.ref(`tournaments/${curDate}/scores/${i}/${t === 1 ? 's1' : 's2'}`).set(v); }
+    function saveTime(i) { db.ref(`tournaments/${curDate}/scores/${i}/dur`).set(document.getElementById('clock').innerText); }
+    function saveManualTime(i, val) { db.ref(`tournaments/${curDate}/scores/${i}/dur`).set(val); }
+    function updateTeams() {
+        const nt = [];
+        for(let i=0; i<4; i++) nt.push(document.getElementById(`team${i}`).value);
+        db.ref(`tournaments/${curDate}/teams`).set(nt);
+    }
+
+    function calculateRank() {
+        let st = localData.teams.map(n => ({n, v:0, sal:0}));
+        matchesDef.forEach((m, i) => {
+            let s = localData.scores[i];
+            if(s.s1 !== "" && s.s2 !== ""){
+                let p1 = parseInt(s.s1), p2 = parseInt(s.s2);
+                st[m.a].sal += (p1-p2); st[m.b].sal += (p2-p1);
+                if(p1 > p2) st[m.a].v++; else if(p2 > p1) st[m.b].v++;
+            }
+        });
+        const sorted = st.sort((a,b) => b.v - a.v || b.sal - a.sal);
+        document.getElementById('rank-body').innerHTML = sorted.map((s,i) => `<tr><td>${i+1}º</td><td>${s.n}</td><td>${s.v}</td><td>${s.sal}</td></tr>`).join('');
+        return sorted;
+    }
+
+    function finishTournament() {
+        if(!confirm("Encerrar rodada e somar pontos no Ranking?")) return;
+        const sorted = calculateRank();
+        const pts = [5, 3, 2, 2]; // Pontuação: 5, 3, 2, 2
+        
+        sorted.forEach((dupla, rank) => {
+            dupla.n.split('/').forEach(p => {
+                let nome = p.trim();
+                currentRankingData[nome] = (currentRankingData[nome] || 0) + pts[rank];
+            });
+        });
+        db.ref('ranking').set(currentRankingData);
+        db.ref(`tournaments/${curDate}/finished`).set(true);
+        alert("Ranking Atualizado com Sucesso!");
+    }
+
+    // Funcionalidades de Ranking e Estatísticas
+    function renderAnnual() {
+        const sorted = Object.entries(currentRankingData).sort((a,b) => b[1] - a[1]);
+        document.getElementById('annual-body').innerHTML = sorted.map(([n, p], i) => {
+            let medal = (i===0 && p>0) ? "🥇 " : (i===1 && p>0) ? "🥈 " : (i===2 && p>0) ? "🥉 " : "";
+            return `<tr>
+                <td><b>${i+1}</b></td>
+                <td>${medal}${n}</td>
+                <td><b>${p}</b></td>
+                <td>
+                    <button class="btn-action" onclick="exportPlayerStats('${n}')">EXTRATO</button>
+                    <button class="btn-delete" onclick="deletePlayer('${n}')">EXCLUIR</button>
+                </td>
+            </tr>`;
+        }).join('');
+    }
+
+    function deletePlayer(name) {
+        if(confirm(`Deseja remover ${name} definitivamente do Ranking Anual?`)) {
+            db.ref(`ranking/${name}`).remove();
+        }
+    }
+
+    function exportPlayerStats(name) {
+        const pts = currentRankingData[name] || 0;
+        const msg = `🏐 EXTRATO INDIVIDUAL - VÔLEI DO CAOS\n--------------------------\nJogador: ${name}\nPontuação Acumulada: ${pts} pts\nStatus: Ativo no Ranking 2026\n--------------------------`;
+        alert(msg);
+        copyToClipboard(msg);
+    }
+
+    function exportAllStats() {
+        const sorted = Object.entries(currentRankingData).sort((a,b) => b[1] - a[1]);
+        let msg = `🏆 RANKING GERAL - VÔLEI DO CAOS 2026\n==========================\n`;
+        sorted.forEach(([n, p], i) => {
+            msg += `${i+1}º ${n}: ${p} pts\n`;
+        });
+        msg += `==========================\nGerado em: ${new Date().toLocaleDateString()}`;
+        alert(msg);
+        copyToClipboard(msg);
+    }
+
+    function copyToClipboard(text) {
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        alert("Extrato copiado para a área de transferência!");
+    }
+
+    function switchTab(t) {
+        document.getElementById('section-torneio').style.display = t === 'torneio' ? 'block' : 'none';
+        document.getElementById('section-ranking').style.display = t === 'ranking' ? 'block' : 'none';
+        document.getElementById('tabT').classList.toggle('active', t==='torneio');
+        document.getElementById('tabR').classList.toggle('active', t==='ranking');
+    }
+
+    let tm, el = 0;
+    function startClock() { clearInterval(tm); let st = Date.now()-el; tm = setInterval(()=>{ el = Date.now()-st; let s=Math.floor(el/1000)%60, m=Math.floor(el/60000)%60, h=Math.floor(el/3600000); document.getElementById('clock').innerText = `${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`; }, 1000); }
+    function pauseClock() { clearInterval(tm); }
+    function resetClock() { pauseClock(); el = 0; document.getElementById('clock').innerText = "00:00:00"; }
+
+    loadTournament();
+</script>
+</body>
+</html>
